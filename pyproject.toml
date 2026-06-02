@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wisdom"
+version = "0.1.0"
+description = "WISDOM is a PyTorch-based library for importance-driven deep neural networks system testing. It implements both the original IDC (DeepImportance) and an enhanced WISDOM pipeline with flexible attribution and clustering."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Shenghao Qiu" }]
+license = { text = "Apache-2.0" }
+dependencies = [
+        "torch>=2.1",
+        "torchaudio",
+        "torchvision>=0.16",
+        "scikit-learn",
+        "numpy>=1.24",
+        "matplotlib",
+        "pytest",
+        "setuptools",
+        "onnx",
+        "pyyaml",
+        "opencv-python",
+        "tqdm",
+        "pandas",
+        "botorch",
+        "captum",
+]
+
+[project.urls]
+Homepage = "https://github.com/JoshuaQSH/Wisdom"
+
+# Optional CLI entrypoint (if you have cli/main.py)
+[project.scripts]
+wisdom = "cli.main:main"
+
+[tool.setuptools]
+include-package-data = true
+
+# Tell setuptools which packages to include.
+# You have top-level packages (core, attribution, clustering, pruning, utils, coverage_methods).
+# We'll also include a 'wisdom' shim package (see Section 4) so users can `import wisdom.core...`.
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["wisdom*"]

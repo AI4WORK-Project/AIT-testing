@@ -1,0 +1,2 @@
+[console_scripts]
+wisdom = cli.main:main

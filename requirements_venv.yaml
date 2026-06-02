@@ -1,0 +1,26 @@
+name: torch_importance
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - ipython
+  - pip:
+    - torch=2.6.0
+    - torchvision
+    - torchaudio
+    - matplotlib
+    - pandas
+    - pytest
+    - scikit-learn
+    - setuptools
+    - tqdm
+    - captum
+    - onnx
+    - pyyaml
+    - opencv-python
+    - pyflann-py3
+    - torchattacks
+    - torch-fidelity
+    - torchmetrics
+    - botorch
