@@ -10,6 +10,9 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Subset
 from sklearn.metrics import f1_score
 
+from wisdom.core.layers import discover_eligible_layers
+from wisdom.utils.checkpoints import load_pytorch_model
+
 def make_path(path):
     if not os.path.exists(path):
         os.mkdir(path)
@@ -22,34 +25,6 @@ def stable_selection_hash(selected, impl, cluster_cfg) -> str:
     h.update(repr(cluster_cfg).encode())
     return h.hexdigest()[:16]
         
-# Decide which testing mode is active
-def _select_testing_mode(args) -> dict:
-    # Return a dictionary with boolean values for each mode
-    testing_mode =  {
-        'end2end': bool(args.end2end),
-        'all_class': bool(args.all_class),
-        'class_iters': bool(args.class_iters)
-    }
-    
-    # Build list of active modes with alternative descriptions for False cases
-    mode_descriptions = []
-    if testing_mode['end2end']:
-        mode_descriptions.append('End2End-Testing')
-    else:
-        mode_descriptions.append('Single-Layer-Testing')
-        
-    if testing_mode['all_class']:
-        mode_descriptions.append('All-Class-Testing')
-    else:
-        mode_descriptions.append('Class-Wise-Testing')
-        
-    if testing_mode['class_iters']:
-        mode_descriptions.append('Iterating-All-Class: On')
-    else:
-        mode_descriptions.append('Iterating-All-Class: Off')
-        
-    return testing_mode, mode_descriptions
-
 def convert_tensors(obj):
     """Recursively convert Tensors to lists"""
     if isinstance(obj, torch.Tensor):
@@ -104,19 +79,10 @@ def load_cluster_groups(filepath):
 #------------
 
 def get_trainable_modules_main(model, prefix=''):
-    
-    trainable_module = []
-    trainable_module_name = []
-    
-    def get_trainable_modules(model, prefix=''):
-        for name, layer in model.named_children():
-            full_name = f"{prefix}.{name}" if prefix else name
-            if isinstance(layer, (torch.nn.Conv2d, torch.nn.Linear)) and any(p.requires_grad for p in layer.parameters()):
-                trainable_module_name.append(full_name)
-                trainable_module.append(layer)
-            get_trainable_modules(layer, full_name)
-    get_trainable_modules(model)
-    return trainable_module, trainable_module_name
+    """Return modules and names using the shared eligible-layer definition."""
+    names = discover_eligible_layers(model)
+    modules = dict(model.named_modules())
+    return [modules[name] for name in names], list(names)
 
 def get_layer_by_name(model, layer_name):
     parts = layer_name.split('.')
@@ -128,17 +94,19 @@ def get_layer_by_name(model, layer_name):
             layer = getattr(layer, part)
     return layer
 
-def get_model(load_model_path='./models_info/saved_models/lenet_CIFAR10_whole.pth'):
-    module_name = []
-    module = []
-    model = torch.load(load_model_path, weights_only=False)
-    
-    # Alternatively, to get all submodule names (including nested ones)
-    for name, layer in model.named_modules():
-        module_name.append(name)
-        module.append(layer)
-
-    return model, module_name, module
+def get_model(load_model_path='./models_info/saved_models/lenet_CIFAR10_whole.pth', device='cpu'):
+    """Load a trusted serialized module using the historical compatibility API."""
+    model = load_pytorch_model(
+        load_model_path,
+        device=device,
+        checkpoint_format="module",
+    )
+    named_modules = list(model.named_modules())
+    return (
+        model,
+        [name for name, _ in named_modules],
+        [module for _, module in named_modules],
+    )
 
 def get_class_data(dataloader, classes, target_class):
     max_test_sample = 8000

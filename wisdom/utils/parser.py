@@ -20,7 +20,6 @@ def parse_args():
     parser.add_argument('--test-image', type=str, default='1', help='Test image name. For the single image testing. (against with the `all-class`).')
     parser.add_argument('--all-class', action='store_true', help='Attributions collected for all the classes. When activated, it will equal to batch testing.')
     parser.add_argument('--class-iters', action='store_true', help='Only valided when doing class-wise testing. If set, the model will be tested for each class separately.')
-    parser.add_argument('--end2end', action='store_true', help='End to end testing for the whole model.')
     parser.add_argument('--idc-test-all', action='store_true', help='Using all the test images for the Coverage testing. Other wise will only sample some images from the test set.')
     parser.add_argument('--num-samples', type=int, default=0, help='Sampling number for the test images (against with the `idc-test-all`).')
     parser.add_argument('--attr', type=str, default='lc', choices=['lc', 'la', 'ii', 'lgxa', 'lgc', 'ldl', 'ldls', 'lgs', 'lig', 'lfa', 'lrp', 'random', 'wisdom'],  help='The attribution method to use.')

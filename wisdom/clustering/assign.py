@@ -1,11 +1,10 @@
 # wisdom/clustering/assign.py
 from __future__ import annotations
-from fileinput import filename
 from typing import Dict, Optional, List
 
 import numpy as np
 import pickle
-from sklearn.metrics import silhouette_score, pairwise_distances_argmin
+from sklearn.metrics import silhouette_score
 from sklearn.cluster import KMeans, MeanShift, estimate_bandwidth
 
 from .factory import make
@@ -55,17 +54,13 @@ def ensure_centers(model, X: np.ndarray):
     model.cluster_centers_ = centers
     return centers
 
-def safe_predict(model, X: np.ndarray):
-    if hasattr(model, "predict"):
-        return model.predict(X)
-    centers = ensure_centers(model, X)
-    return pairwise_distances_argmin(X, centers)
-
-
 def groups_from_legacy_pickle(
     pkl_path: str,
     selected: Dict[str, List[int]],
 ) -> Dict[str, Dict[int, dict]]:
+    # A safer condition, in case selected is None, to avoid KeyError when accessing selected[layer]
+    selected = selected or {}
+    
     with open(pkl_path, "rb") as f:
         legacy = pickle.load(f)
 
@@ -75,7 +70,10 @@ def groups_from_legacy_pickle(
         # to have the same length and order.
         sel_ids = selected.get(layer, [])
         if len(sel_ids) != len(est_list):
-            pass
+            raise ValueError(
+                f"Legacy cluster mismatch for layer {layer}: "
+                f"{len(est_list)} estimators but {len(sel_ids)} selected neurons."
+            )
 
         groups[layer] = {}
         for pos, est in enumerate(est_list):

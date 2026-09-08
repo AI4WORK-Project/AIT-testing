@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.wisdom_cache/
+build/
+dist/
+*.egg-info/
+.venv/
+.superpowers/
+.ruff_cache/
+pytest_cache/
+wisdom_package/
+wisdom-0.1.0/

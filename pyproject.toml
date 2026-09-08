@@ -9,38 +9,65 @@ description = "WISDOM is a PyTorch-based library for importance-driven deep neur
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "Shenghao Qiu" }]
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
         "torch>=2.1",
-        "torchaudio",
         "torchvision>=0.16",
         "scikit-learn",
         "numpy>=1.24",
-        "matplotlib",
-        "pytest",
-        "setuptools",
-        "onnx",
-        "pyyaml",
-        "opencv-python",
         "tqdm",
         "pandas",
-        "botorch",
         "captum",
+        "pillow>=12.3.0",
+        "scipy>=1.15.3",
 ]
 
 [project.urls]
 Homepage = "https://github.com/JoshuaQSH/Wisdom"
 
-# Optional CLI entrypoint (if you have cli/main.py)
-[project.scripts]
-wisdom = "cli.main:main"
+[project.optional-dependencies]
+detection = [
+    "pyyaml>=6.0.3",
+    "ultralytics>=8.4.137,<8.5",
+]
+plot = [
+    "matplotlib>=3.10.9",
+]
+bo = [
+    "botorch>=0.16.1",
+]
 
 [tool.setuptools]
 include-package-data = true
+py-modules = [
+    "convert_torchvision_dataset",
+    "run_wisdom",
+    "wisdom_classification_train",
+    "wisdom_yolo_train",
+    "wisdom_pose_train",
+]
 
-# Tell setuptools which packages to include.
-# You have top-level packages (core, attribution, clustering, pruning, utils, coverage_methods).
-# We'll also include a 'wisdom' shim package (see Section 4) so users can `import wisdom.core...`.
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["wisdom*"]
+include = ["wisdom*", "models_info", "models_info.trt_pose*"]
+exclude = ["wisdom_package*", "tests*", "models_info.models_cv*", "models_info.train_from_scratch*"]
+
+[tool.setuptools.package-data]
+"models_info.trt_pose" = ["LICENSE.md"]
+
+[tool.pytest.ini_options]
+markers = [
+    "bo: exercises the real optional BoTorch backend",
+    "local_trt_pose: exercises the adjacent NVIDIA trt_pose source tree",
+    "ultralytics: exercises the optional Ultralytics detection integration",
+    "slow: CPU-heavy integration coverage",
+]
+
+[dependency-groups]
+test = [
+    "pytest>=9.1.1",
+]

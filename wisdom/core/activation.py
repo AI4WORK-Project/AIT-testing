@@ -6,6 +6,8 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
+from wisdom.core.task import extract_model_inputs
+
 
 def _spatial_mean(x: torch.Tensor) -> torch.Tensor:
     # (B,C,H,W)->(B,C); (B,F)->(B,F)
@@ -42,13 +44,14 @@ def collect_per_neuron_series(model: nn.Module,
         if mod is None: raise KeyError(f"Layer {lname} not found")
         handles.append(mod.register_forward_hook(make_hook(lname, idxs)))
 
-    with torch.no_grad():
-        for x, _ in dataloader:
-            _ = model(x.to(device))
-
-    for h in handles:
-        try: h.remove()
-        except Exception: pass
+    try:
+        with torch.no_grad():
+            for raw_batch in dataloader:
+                x = extract_model_inputs(raw_batch)
+                _ = model(x.to(device))
+    finally:
+        for handle in handles:
+            handle.remove()
 
     out: Dict[str, Dict[int, np.ndarray]] = {}
     for lname, dct in buffers.items():
@@ -90,11 +93,11 @@ def collect_per_neuron_once(model: nn.Module,
         if mod is None: raise KeyError(f"Layer {lname} not found")
         handles.append(mod.register_forward_hook(make_hook(lname, idxs)))
 
-    with torch.no_grad():
-        _ = model(x)
-
-    for h in handles:
-        try: h.remove()
-        except Exception: pass
+    try:
+        with torch.no_grad():
+            _ = model(x)
+    finally:
+        for handle in handles:
+            handle.remove()
 
     return sample_buf

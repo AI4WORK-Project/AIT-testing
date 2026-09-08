@@ -24,17 +24,20 @@ ATTRS = {
     "lrp": LayerLRP,
 }
 
-# Dispatch function for different Captum methods, should take (A, images, labels) and return attributions
+# Dispatch function for different Captum methods.
 def _call_dispatch(name: str) -> Callable:
-    """Return a call(images, labels)->attr function tailored to the method."""
+    """Return a call(images, target)->attr function tailored to the method."""
     key = name.lower()
-    def _call(A, images, labels):
+    def _call(A, images, target):
         if key == "la":
             return A.attribute(images)
         elif key in ("ldl", "ldls", "lgs"):
-            return A.attribute(images, baselines=torch.zeros_like(images), target=labels)
-        else:
-            return A.attribute(images, target=labels)
+            kwargs = {"baselines": torch.zeros_like(images)}
+            if target is not None:
+                kwargs["target"] = target
+            return A.attribute(images, **kwargs)
+        kwargs = {} if target is None else {"target": target}
+        return A.attribute(images, **kwargs)
     return _call
 
 def _accumulate_layer_attr(
@@ -88,22 +91,27 @@ class CaptumLayerAttribution(AttributionMethod):
         model = model.to(device)
         layer = dict(model.named_modules())[layer_name]
         A = self._ctor(model, layer)
-        return _accumulate_layer_attr(A, self._call, model, layer, dataloader, device)
+        return _accumulate_layer_attr(A, self._call, model, dataloader, device)
 
-    def attribute_batch(self, model, images, labels, device="cuda:0",
-                        target_layers: Optional[Iterable[str]] = None, **kwargs) -> Dict[str, torch.Tensor]:
+    def attribute_batch(self, model, images, labels=None, device="cuda:0",
+                        target_layers: Optional[Iterable[str]] = None,
+                        target=None, **kwargs) -> Dict[str, torch.Tensor]:
         """One-batch version: returns {layer_name: per-neuron vector}."""
+        if labels is not None and target is not None:
+            raise ValueError("Pass either labels or target, not both.")
+        resolved_target = labels if target is None else target
         model = model.to(device).eval()
         names = set(target_layers) if target_layers else None
         images = images.to(device)
-        labels = labels.to(device)
+        if isinstance(resolved_target, torch.Tensor):
+            resolved_target = resolved_target.to(device)
 
         out: Dict[str, torch.Tensor] = {}
         for lname, layer in self._candidate_layers(model):
             if names and lname not in names:
                 continue
             A = self._ctor(model, layer)
-            attr = self._call(A, images, labels)
+            attr = self._call(A, images, resolved_target)
             if attr.dim() == 4:
                 vec = attr.sum(dim=(0,2,3)).detach().cpu()
             else:
@@ -145,12 +153,21 @@ def get(method: str) -> CaptumLayerAttribution:
 
 def batch_per_layer_scores(model: torch.nn.Module,
                            images: torch.Tensor,
-                           labels: torch.Tensor,
-                           device: str,
-                           method: str,
-                           target_layers: Optional[Iterable[str]] = None) -> Dict[str, torch.Tensor]:
+                           labels: torch.Tensor | None = None,
+                           device: str = "cuda:0",
+                           method: str = "lgxa",
+                           target_layers: Optional[Iterable[str]] = None,
+                           *,
+                           target: int | torch.Tensor | None = None) -> Dict[str, torch.Tensor]:
     """One-batch attribution via CaptumLayerAttribution."""
-    return get(method).attribute_batch(model, images, labels, device=device, target_layers=target_layers)
+    return get(method).attribute_batch(
+        model,
+        images,
+        labels,
+        device=device,
+        target_layers=target_layers,
+        target=target,
+    )
 
 
 def adaptive_per_layer_scores(model: torch.nn.Module,

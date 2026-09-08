@@ -24,10 +24,11 @@ def get(name: str) -> Type[AttributionMethod]:
 def ensemble_scores(model, dataloader, device, methods: List[str]) -> Dict[str, torch.Tensor]:
     acc: Dict[str, torch.Tensor] = {}
     for m in methods:
+        # Dict[str, torch.Tensor] 
         s = per_layer_scores(model, dataloader, device, m)
         for k,v in s.items():
             acc[k] = v.clone() if k not in acc else (acc[k] + v)
-    # simple normalization (you can swap in your pruning-weighted voting)
+    # Normalization to make scores comparable across methods
     for k in acc:
         t = acc[k]; denom = t.abs().sum().clamp_min(1e-12)
         acc[k] = (t / denom) * torch.numel(t)

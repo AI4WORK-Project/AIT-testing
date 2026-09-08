@@ -10,15 +10,10 @@ def prune_linear_neurons(module: nn.Linear, neuron_indices: List[int], zero_inco
         b = module.bias      # [out_features] or None
         idx = torch.tensor(neuron_indices, dtype=torch.long, device=W.device)
 
-        # Zero OUTGOING paths of chosen neurons: columns in W
-        W[:, idx] = 0.0
-        if zero_incoming:
-            # Also zero row of those neurons if treating them as previous layer outputs
-            W[idx, :] = 0.0
+        # A Linear neuron's activation is one output feature, hence one row.
+        W[idx, :] = 0.0
         if b is not None:
-            # If neuron index refers to out_features, bias zeroing applies when zero_incoming==True.
-            # Typically you do NOT touch bias here unless pruning output units.
-            pass
+            b[idx] = 0.0
 
 def prune_conv_neurons(module: nn.Conv2d, channel_indices: List[int]):
     with torch.no_grad():
