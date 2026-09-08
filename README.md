@@ -281,11 +281,7 @@ Only use `module` with trusted weights. WISDOM loads on CPU, selects the saved
 EMA model when present, converts FP16 exports to FP32, and then moves to the
 requested device. Fully frozen exported models have gradients enabled for
 analysis; weights are not retrained and modules are not fused, preserving CSV
-layer names. This loading path never downloads weights.
-
-On this shared-storage host, prefix the command with `TMPDIR=/tmp` when using
-DataLoader workers; this avoids multiprocessing socket-cleanup errors on the
-network filesystem. `--num-workers 0` is another option. GPU can be used by `--device cuda:0`.
+layer names. This loading path never downloads weights. GPU can be used by `--device cuda:0`.
 
 For a raw state dictionary instead, use a local Ultralytics YAML plus matching
 weights:
@@ -315,8 +311,8 @@ file is absent, metrics are unavailable. Partial label presence is an error.
 Reported precision/recall/F1 use confidence >= 0.25, class-aware NMS at IoU
 0.45 and matching at IoU >= 0.5. Inputs are resized directly to a square, not
 Ultralytics letterboxed. These are WISDOM runner metrics, **not** official COCO
-mAP or an Ultralytics `val` benchmark. Coverage measures selected-neuron
-activation patterns, independently of detection accuracy.
+mAP or an Ultralytics `val` benchmark. 
+
 
 ### Pose / trt_pose
 
@@ -353,17 +349,6 @@ For NVIDIA pose, use the state-dict reconstruction route shown above (or
 A legacy pickled/directly constructed NVIDIA module without that metadata is
 not covered by this guarantee and can still expose an unused classifier.
 
-The built-in pose loader resizes RGB images, scales to `[0,1]`, then applies
-ImageNet mean/std `(0.485,0.456,0.406)` / `(0.229,0.224,0.225)`, consistently
-for build, validation and test data. Classification normalization flags do not
-alter it. For checkpoints requiring different preprocessing or supervised
-heatmap/PAF/mask targets, supply a matching loader through the Python API.
-See [dataset preparation](datasets/README.md) for COCO image layout and the
-bundled NVIDIA topology/annotation converter; image-only coverage does not
-consume the annotation JSON or report pose accuracy.
-
-Random state-dict weights prove integration only. Meaningful pose-quality
-evaluation requires trained weights, matching preprocessing and pose ground truth.
 
 ### CSV, clustering and BO lifecycle
 
@@ -432,13 +417,11 @@ diagonal, counting only unmasked, nonzero target keypoints. This is not COCO
 OKS/AP or multiperson association accuracy. Image-only pose instead reports
 `pose_confidence_surrogate`: the average per-keypoint maximum sigmoid confidence.
 It is bounded but not calibrated as a probability (zero maps give 0.5).
-Image-only pose BO uses this surrogate, never fake F1 or accuracy.
+Image-only pose BO uses this surrogate, never fake F1 or accuracy. 
 
 Unavailable metrics are `null` in JSON and `N/A` in the terminal.
 Coverage measures diversity of joint cluster assignments of selected internal
-neuron activations. For pose it is not coverage of keypoint coordinates,
-anatomical correctness or a guarantee of accuracy. Correlation-based BO using
-unlabeled confidence does not validate pose quality.
+neuron activations. 
 
 ### Direct neuron-score pretraining
 
