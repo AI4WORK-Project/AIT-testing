@@ -279,9 +279,7 @@ Ultralytics supplies the Python layer definitions needed to unpickle `.pt`
 files; a separate YOLO source clone or YAML is unnecessary for this format.
 Only use `module` with trusted weights. WISDOM loads on CPU, selects the saved
 EMA model when present, converts FP16 exports to FP32, and then moves to the
-requested device. Fully frozen exported models have gradients enabled for
-analysis; weights are not retrained and modules are not fused, preserving CSV
-layer names. This loading path never downloads weights. GPU can be used by `--device cuda:0`.
+requested device. GPU can be used by `--device cuda:0`.
 
 For a raw state dictionary instead, use a local Ultralytics YAML plus matching
 weights:
@@ -367,11 +365,6 @@ reserve at least one sample; JSON reports the realized fraction. If using a
 converted dataset's existing validation split, supply its explicit path to
 avoid reserving another holdout.
 
-CSV, trainer checkpoint and cluster cache formats do not encode full dataset,
-model and preprocessing provenance. Use new artifact/cache paths when changing
-weights, data, preprocessing or split seed; do not reuse artifacts built using
-samples that are now validation data.
-
 `--top-m-neurons` means M per scope: globally, per dynamic group, or per
 considered layer. The same per-scope budget is respected in consensus fusion.
 `--num-groups` chooses the group count; `--num-layers` evenly limits discovered
@@ -405,23 +398,6 @@ up to five ordered, nested validation subsets. It tunes clustering, not model
 weights. Constant metric/coverage series yield objective zero. The chosen
 configuration and BO history path appear in terminal output and JSON; without
 BO the fixed clustering configuration is printed instead.
-
-### Honest task metrics
-
-Classification reports accuracy, mean cross-entropy and weighted F1. Detection
-reports precision/recall/F1 using confidence >= 0.25, class-aware NMS at IoU 0.45
-and one-to-one same-class matching at IoU >= 0.5; this is not COCO mAP.
-
-Programmatic supervised pose batches report peak PCK at 5% of the heatmap
-diagonal, counting only unmasked, nonzero target keypoints. This is not COCO
-OKS/AP or multiperson association accuracy. Image-only pose instead reports
-`pose_confidence_surrogate`: the average per-keypoint maximum sigmoid confidence.
-It is bounded but not calibrated as a probability (zero maps give 0.5).
-Image-only pose BO uses this surrogate, never fake F1 or accuracy. 
-
-Unavailable metrics are `null` in JSON and `N/A` in the terminal.
-Coverage measures diversity of joint cluster assignments of selected internal
-neuron activations. 
 
 ### Direct neuron-score pretraining
 
@@ -538,12 +514,9 @@ The test target includes detection and BO dependencies and forces CPU tests;
 the locked Torch distribution is CUDA-capable, not a minimal CPU-only wheel.
 GPU runs require a compatible host driver and NVIDIA container runtime.
 
-These commands are typed **from the host**. Docker was not built or run during
-this update; container availability is not required for local validation.
-
 ```shell
-cd /shared/storage/cs/scratch/lrr550/package_wisdom/Wisdom
-docker build -f Docker/Dockerfile --target test -t wisdom-test .
-docker run --rm --network none wisdom-test \
+cd Wisdom
+docker build -f Docker/Dockerfile --target test -t wisdom .
+docker run --rm --network none wisdom \
   uv run --offline --no-sync pytest -q tests/test_wisdom_e2e.py
 ```
