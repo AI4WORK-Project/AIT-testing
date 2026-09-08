@@ -148,8 +148,8 @@ def _detection_model_factory(model_path: str) -> nn.Module:
         from ultralytics.nn.tasks import DetectionModel
     except ModuleNotFoundError as exc:
         raise RuntimeError(
-            "Detection support requires the optional dependency set: "
-            "`uv sync --extra detection`."
+            "Detection support requires Ultralytics; restore project dependencies "
+            "with `uv sync`."
         ) from exc
     path = Path(model_path)
     if not path.is_file() or path.suffix.lower() not in {".yaml", ".yml"}:
@@ -158,18 +158,44 @@ def _detection_model_factory(model_path: str) -> nn.Module:
 
 
 def load_detection_architecture(
-    model_path: str,
+    model_path: str | None,
     weights_path: str,
     checkpoint_format: str,
     device: str,
 ) -> nn.Module:
-    """Reconstruct local YOLO architecture before safely loading its separate weights."""
-    model = load_pytorch_model(
-        weights_path,
-        device="cpu",
-        checkpoint_format=checkpoint_format,
-        model_factory=lambda: _detection_model_factory(model_path),
-    )
+    """Load local weights, reconstructing from YAML only for state dictionaries.
+
+    ``module`` explicitly trusts pickle: accept a full module or Ultralytics'
+    model/ema container, preferring EMA as its own loader does. Load on CPU and
+    convert saved FP16 parameters to FP32 for our float32 image tensors. Do not
+    fuse layers: that would change the modules used by the neuron-score CSV.
+    No download or package auto-install fallback is attempted.
+    """
+    if checkpoint_format == "module":
+        payload = torch.load(
+            Path(weights_path), map_location=torch.device("cpu"), weights_only=False,
+        )
+        model = payload
+        if isinstance(payload, dict):
+            model = payload.get("ema")
+            if model is None:
+                model = payload.get("model")
+        if not isinstance(model, nn.Module):
+            raise TypeError(
+                "Trusted detection checkpoint must contain an nn.Module or an "
+                "Ultralytics 'model'/'ema' module; for state dictionaries use "
+                "checkpoint-format state-dict with a local --model-path YAML."
+            )
+        model = model.float()
+    else:
+        if not model_path:
+            raise ValueError("Detection state-dict checkpoints require a local --model-path YAML.")
+        model = load_pytorch_model(
+            weights_path,
+            device="cpu",
+            checkpoint_format=checkpoint_format,
+            model_factory=lambda: _detection_model_factory(model_path),
+        )
     return model.to(device).eval()
 
 
@@ -338,7 +364,10 @@ def prepare_detection_inference(args: argparse.Namespace) -> PreparedTask:
 # ------------------------------------------------------------------
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Detection WISDOM pretraining wrapper")
-    p.add_argument("--weights", default="weights/yolo11n.pt", help="YOLO weights file")
+    p.add_argument(
+        "--weights", default="weights/yolo11n.pt",
+        help="Trusted local Ultralytics .pt checkpoint; a model YAML instead creates random weights for testing.",
+    )
     p.add_argument("--data", default="standalone/data/coco128.yaml", help="Dataset YAML whose train entry resolves the image source.")
     p.add_argument("--img-dir", default=None, help="Override image source: directory, txt list, or single image path.")
     p.add_argument("--batch-size", type=int, default=4)

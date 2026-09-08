@@ -38,8 +38,8 @@ def load_detection_model(weights: str, device: str = "cpu") -> DetectionModelBun
         from ultralytics import YOLO
     except ModuleNotFoundError as exc:
         raise RuntimeError(
-            "Detection support requires the optional dependency set: "
-            "`uv sync --extra detection`."
+            "Detection support requires Ultralytics; restore project dependencies "
+            "with `uv sync`."
         ) from exc
 
     try:

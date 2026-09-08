@@ -86,8 +86,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mode", choices=["wisdom", "idc"], required=True)
     parser.add_argument("--task", choices=["classification", "detection", "pose"], required=True)
     parser.add_argument("--weights-path", required=True)
-    parser.add_argument("--model-path", default=None)
-    parser.add_argument("--checkpoint-format", choices=["auto", "module", "state-dict"], default="state-dict")
+    parser.add_argument(
+        "--model-path", default=None,
+        help="Local YOLO architecture YAML for state-dict loading; not needed for a trusted module .pt.",
+    )
+    parser.add_argument(
+        "--checkpoint-format", choices=["auto", "module", "state-dict"], default="state-dict",
+        help="Use module only for trusted pickles (including Ultralytics .pt model/ema containers).",
+    )
     parser.add_argument("--model-factory", default=None)
     parser.add_argument("--build-data-path", required=True)
     parser.add_argument(
@@ -339,8 +345,8 @@ def _validate_args(args: argparse.Namespace) -> None:
         raise ValueError("classification state-dict checkpoints require --model-factory")
     if task == "detection":
         model_path = getattr(args, "model_path", None)
-        if not model_path:
-            raise ValueError("detection requires a local --model-path")
+        if not model_path and getattr(args, "checkpoint_format", "state-dict") != "module":
+            raise ValueError("detection state-dict checkpoints require a local --model-path")
         if "://" in str(model_path):
             raise ValueError("detection --model-path must be local")
     if task == "pose":

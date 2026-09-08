@@ -723,7 +723,7 @@ def train_wisdom_pose(
     from wisdom.tasks.pose import PoseAdapter
 
     if methods is None:
-        methods = ["lgxa"]
+        methods = ["lgxa", "lig"]
     adapter = PoseAdapter(model.eval(), output_layer_names=output_layer_names)
     cfg = WisdomTrainConfig(
         methods=methods,

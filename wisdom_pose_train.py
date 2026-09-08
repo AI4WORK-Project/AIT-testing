@@ -357,7 +357,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--batch-size", type=positive_int, default=4)
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument("--top-m", type=positive_int, default=20)
-    parser.add_argument("--methods", nargs="+", default=["lgxa"])
+    parser.add_argument(
+        "--methods", nargs="+", default=["lgxa", "lig"],
+        help="Attribution methods (default: lgxa lig); see README for all method IDs.",
+    )
     parser.add_argument(
         "--voting-mode",
         default="fine-grained",

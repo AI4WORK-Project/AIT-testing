@@ -206,15 +206,18 @@ def test_classification_runner_generates_reuses_scores_and_runs_sklearn_bo(
         "--model-path", str(checkpoint), "--checkpoint-format", "state-dict",
         "--model-factory", "tests.helpers:TinyClassifier",
         "--imagefolder-root", str(build_root), "--image-size", "8", "--normalize", "none",
-        "--methods", "la", "--top-m", "1", "--num-layers", "1",
+        "--methods", "lgxa", "lig", "lgs", "--top-m", "1", "--num-layers", "1",
         "--out-csv", str(direct_csv), "--device", "cpu",
     ], inference=False)
     assert _score_layer_names(direct_csv)
 
 
 @pytest.mark.ultralytics
-def test_detection_runner_uses_local_yolo_state_dict_and_labeled_metrics(tmp_path: Path) -> None:
-    """Catch wrapper-prefix/head-filter and per-group runner regressions."""
+@pytest.mark.parametrize("checkpoint_format", ["state-dict", "module"])
+def test_detection_runner_uses_local_yolo_checkpoint_and_labeled_metrics(
+    tmp_path: Path, checkpoint_format: str,
+) -> None:
+    """Catch state-dict/stock .pt loading, hook-name and per-group regressions."""
     pytest.importorskip("ultralytics")
     import yaml
     from ultralytics.nn.tasks import DetectionModel
@@ -222,7 +225,14 @@ def test_detection_runner_uses_local_yolo_state_dict_and_labeled_metrics(tmp_pat
     model_path, checkpoint = tmp_path / "tiny-yolo.yaml", tmp_path / "tiny-yolo-state-dict.pth"
     model_path.write_text(yaml.safe_dump(MINIMAL_YOLO), encoding="utf-8")
     source = DetectionModel(str(model_path), ch=3, nc=2, verbose=False).eval()
-    torch.save(source.state_dict(), checkpoint)
+    architecture_args = []
+    if checkpoint_format == "state-dict":
+        torch.save(source.state_dict(), checkpoint)
+        architecture_args = ["--model-path", str(model_path)]
+    else:
+        checkpoint = tmp_path / "tiny-yolo.pt"
+        # Official exported .pt files contain FP16, fully frozen modules.
+        torch.save({"model": source.half().requires_grad_(False), "ema": None}, checkpoint)
     build_root, test_root = tmp_path / "build", tmp_path / "test"
     _write_detection_split(build_root, offset=20)
     _write_detection_split(test_root, offset=80)
@@ -230,8 +240,8 @@ def test_detection_runner_uses_local_yolo_state_dict_and_labeled_metrics(tmp_pat
     _run([
         sys.executable, "-m", "run_wisdom",
         "--mode", "wisdom", "--task", "detection",
-        "--model-path", str(model_path), "--weights-path", str(checkpoint),
-        "--checkpoint-format", "state-dict",
+        *architecture_args, "--weights-path", str(checkpoint),
+        "--checkpoint-format", checkpoint_format,
         "--build-data-path", str(build_root / "images"),
         "--test-data-path", str(test_root / "images"),
         "--wisdom-csv", str(score_path), "--output-json", str(result_path),
@@ -243,7 +253,10 @@ def test_detection_runner_uses_local_yolo_state_dict_and_labeled_metrics(tmp_pat
     summary = _load_summary(result_path)
     assert summary["task"] == "detection"
     assert summary["model"]["name"] == "DetectionModel"
-    assert summary["model"]["model_path"] == str(model_path.resolve())
+    assert summary["model"]["model_path"] == (
+        str(model_path.resolve()) if checkpoint_format == "state-dict" else None
+    )
+    assert summary["model"]["checkpoint_format"] == checkpoint_format
     assert summary["score_csv"]["status"] == "generated"
     layer_names = _score_layer_names(score_path)
     assert layer_names and all(name.startswith("yolo_model.") for name in layer_names)
@@ -256,14 +269,20 @@ def test_detection_runner_uses_local_yolo_state_dict_and_labeled_metrics(tmp_pat
     assert all(math.isfinite(float(metrics[key])) and 0.0 <= float(metrics[key]) <= 1.0 for key in ("precision", "recall", "f1"))
 
     direct_csv = tmp_path / "direct-detection.csv"
+    direct_checkpoint = tmp_path / "direct-detection.pt"
+    torch.save({"model": source.half().requires_grad_(False), "ema": None}, direct_checkpoint)
+    method_csvs = {name: tmp_path / f"direct-{name}.csv" for name in ("lgxa", "lig", "lgs")}
     _run([
         sys.executable, "-m", "wisdom_yolo_train",
-        "--weights", str(model_path), "--img-dir", str(build_root / "images"),
-        "--imgsz", "32", "--num-images", "3", "--methods", "la", "--top-m", "1",
+        "--weights", str(direct_checkpoint), "--img-dir", str(build_root / "images"),
+        "--imgsz", "32", "--num-images", "3", "--methods", "lgxa", "lig", "lgs", "--top-m", "1",
         "--selection-mode", "per-group", "--num-groups", "2", "--num-layers", "2",
+        "--method-out-csv", *[f"{name}={path}" for name, path in method_csvs.items()],
         "--out-csv", str(direct_csv), "--device", "cpu",
     ], inference=False)
     assert _score_layer_names(direct_csv)
+    for path in method_csvs.values():
+        assert _score_layer_names(path)
 
 
 @pytest.mark.local_trt_pose
@@ -323,7 +342,7 @@ def test_pose_runner_uses_packaged_resnet_and_image_only_surrogate(tmp_path: Pat
         sys.executable, "-m", "wisdom_pose_train",
         "--model-path", str(checkpoint), "--checkpoint-format", "state-dict",
         "--pose-topology", str(topology_path), "--pose-architecture", "resnet18_baseline_att",
-        "--img-dir", str(build_root), "--image-size", "32", "--methods", "lgxa",
+        "--img-dir", str(build_root), "--image-size", "32", "--methods", "lgxa", "lig", "lgs",
         "--top-m", "1", "--num-layers", "1",
         "--out-csv", str(direct_csv), "--device", "cpu",
     ], inference=False)

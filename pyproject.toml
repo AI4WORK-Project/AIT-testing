@@ -24,19 +24,15 @@ dependencies = [
         "captum",
         "pillow>=12.3.0",
         "scipy>=1.15.3",
+        "matplotlib>=3.10.9",
+        "pyyaml>=6.0.3",
+        "ultralytics>=8.4.137,<8.5",
 ]
 
 [project.urls]
 Homepage = "https://github.com/JoshuaQSH/Wisdom"
 
 [project.optional-dependencies]
-detection = [
-    "pyyaml>=6.0.3",
-    "ultralytics>=8.4.137,<8.5",
-]
-plot = [
-    "matplotlib>=3.10.9",
-]
 bo = [
     "botorch>=0.16.1",
 ]
@@ -63,7 +59,7 @@ exclude = ["wisdom_package*", "tests*", "models_info.models_cv*", "models_info.t
 markers = [
     "bo: exercises the real optional BoTorch backend",
     "local_trt_pose: exercises the adjacent NVIDIA trt_pose source tree",
-    "ultralytics: exercises the optional Ultralytics detection integration",
+    "ultralytics: exercises the Ultralytics detection integration",
     "slow: CPU-heavy integration coverage",
 ]
 

@@ -192,6 +192,14 @@ def test_pth_suffix_never_changes_explicit_task() -> None:
     assert _parse("--weights-path", "pose.pth").task == "classification"
 
 
+def test_trusted_detection_module_does_not_require_separate_architecture() -> None:
+    """Requiring --model-path for standard Ultralytics .pt files is a regression."""
+    run_wisdom._validate_args(_parse(
+        "--task", "detection", "--weights-path", "yolo11n.pt",
+        "--checkpoint-format", "module",
+    ))
+
+
 @pytest.mark.parametrize(
     ("args", "message"),
     [
@@ -453,7 +461,8 @@ def test_wisdom_generation_validates_the_requested_score_destination(tmp_path: P
 
 @pytest.mark.parametrize("value", [None, "", "missing.csv"])
 def test_idc_csv_is_never_generated(tmp_path: Path, value: str | None) -> None:
-    path = None if value is None else str(tmp_path / value)
+    # Keep an empty CLI argument empty: tmp_path / "" is a directory instead.
+    path = str(tmp_path / value) if value else value
     with pytest.raises(ValueError, match="existing nonempty IDC"):
         run_wisdom._resolve_score_artifact(
             _namespace(mode="idc", wisdom_csv=None, idc_csv=path),

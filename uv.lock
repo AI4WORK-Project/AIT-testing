@@ -2830,6 +2830,8 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "captum" },
+    { name = "matplotlib", version = "3.10.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "matplotlib", version = "3.11.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11' and sys_platform == 'darwin'" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11' and sys_platform != 'darwin'" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
@@ -2837,6 +2839,7 @@ dependencies = [
     { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "pandas", version = "3.0.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pillow" },
+    { name = "pyyaml" },
     { name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "scikit-learn", version = "1.9.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -2845,20 +2848,13 @@ dependencies = [
     { name = "torch" },
     { name = "torchvision" },
     { name = "tqdm" },
+    { name = "ultralytics" },
 ]
 
 [package.optional-dependencies]
 bo = [
     { name = "botorch", version = "0.16.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "botorch", version = "0.18.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-]
-detection = [
-    { name = "pyyaml" },
-    { name = "ultralytics" },
-]
-plot = [
-    { name = "matplotlib", version = "3.10.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "matplotlib", version = "3.11.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
 
 [package.dev-dependencies]
@@ -2870,19 +2866,19 @@ test = [
 requires-dist = [
     { name = "botorch", marker = "extra == 'bo'", specifier = ">=0.16.1" },
     { name = "captum" },
-    { name = "matplotlib", marker = "extra == 'plot'", specifier = ">=3.10.9" },
+    { name = "matplotlib", specifier = ">=3.10.9" },
     { name = "numpy", specifier = ">=1.24" },
     { name = "pandas" },
     { name = "pillow", specifier = ">=12.3.0" },
-    { name = "pyyaml", marker = "extra == 'detection'", specifier = ">=6.0.3" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "scikit-learn" },
     { name = "scipy", specifier = ">=1.15.3" },
     { name = "torch", specifier = ">=2.1" },
     { name = "torchvision", specifier = ">=0.16" },
     { name = "tqdm" },
-    { name = "ultralytics", marker = "extra == 'detection'", specifier = ">=8.4.137,<8.5" },
+    { name = "ultralytics", specifier = ">=8.4.137,<8.5" },
 ]
-provides-extras = ["detection", "plot", "bo"]
+provides-extras = ["bo"]
 
 [package.metadata.requires-dev]
 test = [{ name = "pytest", specifier = ">=9.1.1" }]

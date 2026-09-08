@@ -1,19 +1,68 @@
 # WISDOM Package
 
 WISDOM is a PyTorch library for importance-driven, internal-activation coverage
-testing of classification, YOLO detection and pose-estimation models.
+testing of classification, YOLO detection and pose-estimation (optional) models.
 
 <div align="center">
   <img src="figs/wisdom_overview.png" alt="Wisdom Overview diagram" width="1500"/>
 </div>
 
+## Prerequisites
+
+Use the uv-managed `pyproject.toml` / `uv.lock` environment below for current
+WISDOM development and testing. `requirements.txt` and `requirements_venv.yaml`
+are legacy environment snapshots, not the authoritative package dependencies.
+
+Use conda or pyvenv to build a virtual environment：
+
+```shell
+# Legacy requirements (prefer uv sync below)
+python -m pip install -r requirements.txt
+
+# (Deprecated) If you are using anaconda or miniconda virtual environment, do:
+conda env create -f requirements_venv.yaml
+```
+
+### How to get `uv`
+
+```shell
+# Install through url
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# Or
+wget -qO- https://astral.sh/uv/install.sh | sh
+# Using pip
+python -m pip install uv
+
+## Update uv
+# self update
+uv self update
+# with pip
+python -m pip install --upgrade uv
+```
+
+For more details, check out the [official uv document](https://docs.astral.sh/uv/).
+
+From the repository root, create `.venv` only if it does not already exist:
+
+```shell
+uv venv .venv --python 3.12
+uv sync --locked
+
+# To activate the virtual environment:
+source .venv/bin/activate
+
+# Or you may run the script using `uv run python ...` without activating the virtual environment
+uv run python run_wisdom.py --help
+```
+
+
 ## Quick validation
 
-From the source checkout, use the existing `.venv` with uv:
+From the source checkout, use the existing `.venv` with `uv`, `CUDA_VISIBLE_DEVICES` to activate (or deactivate) GPU:
 
 ```shell
 cd /shared/storage/cs/scratch/lrr550/package_wisdom/Wisdom
-uv sync --locked --group test --extra detection --extra bo
+uv sync --locked --group test --extra bo
 
 CUDA_VISIBLE_DEVICES="" OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
   uv run --offline --no-sync pytest -q tests/test_wisdom_e2e.py
@@ -38,25 +87,32 @@ Initial dependency installation may require the network; tests do not.
 ## Build and install a wheel
 
 ```shell
-uv build --wheel --config-setting=--build-option=--keep-temp --out-dir ../wisdom-wheelhouse
+TMPDIR=/tmp uv build --wheel --config-setting=--build-option=--keep-temp --out-dir ../wisdom-wheelhouse
 
 # In the Python environment where you want to use WISDOM:
 python -m pip install ../wisdom-wheelhouse/wisdom-0.1.0-py3-none-any.whl
-# Optional detection and BoTorch backends:
-python -m pip install '../wisdom-wheelhouse/wisdom-0.1.0-py3-none-any.whl[detection,bo]'
+# Optional BoTorch backend (detection is included in the base package):
+python -m pip install '../wisdom-wheelhouse/wisdom-0.1.0-py3-none-any.whl[bo]'
 python -m run_wisdom --help
 ```
 
-With uv, use `uv pip install` instead of `python -m pip install`. Rebuild the
-wheel after changing source. Build outputs are deliberately outside the
-checkout. `--keep-temp` avoids a setuptools temporary-directory cleanup failure
-on this shared filesystem; it leaves an ignored `build/` directory. Start with
-a fresh build tree when changing package contents so stale files cannot enter
-the wheel. Datasets, research model weights and CIFAR model factories are not
-included in the wheel.
+With `uv`, use `uv pip install` instead of `python -m pip install`. Rebuild the
+wheel after changing source. The wheel output above is outside the checkout.
+`--keep-temp` avoids a setuptools temporary-directory cleanup failure on this
+shared filesystem; it retains intermediate build files.
 
-The base package includes PyTorch/torchvision, Captum and sklearn. Detection,
-BoTorch and plotting (`[plot]`) remain optional; pose needs no TensorRT extra.
+The repository-root `build/` (temporary package copies) and `wisdom.egg-info/`
+(generated setuptools metadata) are disposable, ignored build artifacts, not
+source code or runtime dependencies. They can be removed after a build/install
+finishes; later builds or editable installs may regenerate them. Start with a
+fresh `build/` when changing package contents so stale files cannot enter the
+wheel. Keep `.venv/`, `wisdom/`, `pyproject.toml`, `uv.lock` and `setup.py`;
+do not confuse root-level `wisdom.egg-info/` with installed environment metadata.
+Datasets, research model weights and CIFAR model factories are not included in
+the wheel. Dataset helpers and their tests are source-checkout utilities.
+
+The base package includes PyTorch/torchvision, Captum, sklearn, PyYAML and
+Ultralytics. BoTorch remains optional; pose needs no TensorRT extra.
 For an explicit installed-wheel regression run:
 
 ```shell
@@ -119,20 +175,20 @@ Conversion uses `download=False` and refuses any existing destination,
 including a final symlink. It never edits the native dataset. Do not rerun it
 on an existing export or run simultaneous conversions to the same destination.
 
-For the trusted CIFAR-10 ResNet18 supplied in the source checkout:
+For the trusted CIFAR-10 ResNet18 supplied in the source checkout (use `python run_wisdom.py ...` if inside an virtual environment):
 
 ```shell
 uv run python run_wisdom.py \
   --mode wisdom --task classification \
   --weights-path ./models_info/saved_models/resnet18_CIFAR10_whole.pth \
   --checkpoint-format module \
-  --build-data-path /shared/storage/cs/scratch/lrr550/datasets/cifar-10-imagefolder/build \
+  --build-data-path /path/to/cifar-10-imagefolder/build \
   --validation-data-path /shared/storage/cs/scratch/lrr550/datasets/cifar-10-imagefolder/validation \
-  --test-data-path /shared/storage/cs/scratch/lrr550/datasets/cifar-10-imagefolder/test \
+  --test-data-path /path/to/cifar-10-imagefolder/test \
   --image-size 32 --normalize custom \
   --normalize-mean 0.4914,0.4822,0.4465 \
   --normalize-std 0.2023,0.1994,0.2010 \
-  --wisdom-csv ./artifacts/resnet18_cifar10_wisdom.csv \
+  --wisdom-csv ./saved_files/pre_csv/resnet18_cifar10.csv \
   --output-json ./results/resnet18_cifar10.json \
   --device cpu
 ```
@@ -149,13 +205,18 @@ paths with your own local files. The classification factory must take no argumen
 
 ```shell
 uv run python run_wisdom.py \
-  --mode wisdom --task classification \
-  --weights-path ./classifier.pth --checkpoint-format state-dict \
+  --mode wisdom \
+  --task classification \
+  --weights-path /path/to/classifier.pth \
+  --checkpoint-format state-dict \
   --model-factory my_package.models:make_classifier \
-  --build-data-path ./data/build --test-data-path ./data/test \
-  --image-size 32 --normalize none \
-  --wisdom-csv ./artifacts/classifier_wisdom.csv \
-  --output-json ./results/classifier_coverage.json --device cpu
+  --build-data-path /path/to/dataset/build \
+  --test-data-path /path/to/dataset/test \
+  --image-size 32 \
+  --normalize none \
+  --wisdom-csv /path/to/classifier_wisdom.csv \
+  --output-json ./results/classifier_coverage.json \
+  --device cpu
 ```
 
 Preprocessing must match model training, not merely the dataset's name.
@@ -174,37 +235,105 @@ build, explicit BO validation, the automatic holdout and test data.
 
 ### YOLO detection
 
-Use a local Ultralytics YAML plus matching raw state dictionary:
+A trusted standard Ultralytics checkpoint such as `yolo11n.pt` already contains
+its model architecture. Use `--checkpoint-format module` without `--model-path`:
 
 ```shell
 uv run python run_wisdom.py \
   --mode wisdom --task detection \
-  --model-path ./models/yolo.yaml --weights-path ./models/yolo_state_dict.pth \
+  --weights-path ./models_info/saved_models/yolo11n.pt \
+  --checkpoint-format module \
+  --build-data-path /path/to/coco_build.txt \
+  --test-data-path /path/to/coco_test.txt \
+  --wisdom-csv ./saved_files/pre_csv/wisdom_yolo11n_scores_5k.csv \
+  --output-json ./results/yolo11n_coco_coverage.json \
+  --imgsz 640 \
+  --batch-size 8 \
+  --num-workers 4 \
+  --selection-mode global \
+  --top-m-neurons 10 \
+  --cluster-method KMeans \
+  --n-clusters 2 \
+  --seed 42 \
+  --device cpu
+```
+
+The two `.txt` inputs list one image path per line (absolute paths, or paths
+relative to the list file). For local COCO, build images come from
+`/path/to/coco/images/train2017` and test images
+from `images/val2017`, which has ground truth; do not use the unlabeled
+`test2017` split for detection-quality metrics. An existing nonempty WISDOM CSV
+is reused, but clustering still fits on build images. BO is off unless `--bo`
+is supplied, and no validation input is needed without BO.
+
+For a quick check, limit each list to a small, disjoint subset (for example,
+256 train and 256 validation images). If selecting only images with existing
+label files, report that restriction: it is not a full COCO evaluation. This
+runner rejects *partial* label presence rather than assuming every missing
+label is an empty image. Some COCO label exports omit files for empty/crowd-only
+images, so using the full split requires complete, verified YOLO labels,
+including empty files where appropriate. Do not create empty labels for
+unverified missing annotations.
+
+Ultralytics supplies the Python layer definitions needed to unpickle `.pt`
+files; a separate YOLO source clone or YAML is unnecessary for this format.
+Only use `module` with trusted weights. WISDOM loads on CPU, selects the saved
+EMA model when present, converts FP16 exports to FP32, and then moves to the
+requested device. Fully frozen exported models have gradients enabled for
+analysis; weights are not retrained and modules are not fused, preserving CSV
+layer names. This loading path never downloads weights.
+
+On this shared-storage host, prefix the command with `TMPDIR=/tmp` when using
+DataLoader workers; this avoids multiprocessing socket-cleanup errors on the
+network filesystem. `--num-workers 0` is another option. GPU can be used by `--device cuda:0`.
+
+For a raw state dictionary instead, use a local Ultralytics YAML plus matching
+weights:
+
+```shell
+uv run python run_wisdom.py \
+  --mode wisdom \
+  --task detection \
+  --model-path /path/to/yolo.yaml \
+  --weights-path /path/to/yolo_state_dict.pth \
   --checkpoint-format state-dict \
-  --build-data-path ./data/yolo/build/images \
-  --test-data-path ./data/yolo/test/images --imgsz 640 \
-  --selection-mode per-group --num-groups 3 --num-layers 9 \
-  --wisdom-csv ./artifacts/yolo_wisdom.csv \
-  --output-json ./results/yolo_coverage.json --device cpu
+  --build-data-path /path/to/build/images \
+  --test-data-path /path/to/test/images \
+  --imgsz 640 \
+  --selection-mode per-group \
+  --num-groups 3 \
+  --num-layers 9 \
+  --wisdom-csv /path/to/yolo_wisdom.csv \
+  --output-json ./results/yolo_coverage.json \
+  --device cpu
 ```
 
 Detection uses RGB inputs scaled to `[0,1]`; classification normalization flags
 do not change this path. For metrics, provide matching YOLO `.txt` labels in
-`labels/` next to `images/`. Empty label files mean no objects; absent labels
-mean metrics are unavailable.
+`labels/` next to `images/`. Empty label files mean no objects; if every label
+file is absent, metrics are unavailable. Partial label presence is an error.
+Reported precision/recall/F1 use confidence >= 0.25, class-aware NMS at IoU
+0.45 and matching at IoU >= 0.5. Inputs are resized directly to a square, not
+Ultralytics letterboxed. These are WISDOM runner metrics, **not** official COCO
+mAP or an Ultralytics `val` benchmark. Coverage measures selected-neuron
+activation patterns, independently of detection accuracy.
 
 ### Pose / trt_pose
 
 ```shell
 uv run python run_wisdom.py \
-  --mode wisdom --task pose \
-  --weights-path ./models/random_pose.pth --checkpoint-format state-dict \
-  --pose-topology ./configs/human_pose.json \
+  --mode wisdom \
+  --task pose \
+  --weights-path /path/to/random_pose.pth \
+  --checkpoint-format state-dict \
+  --pose-topology /path/to/human_pose.json \
   --pose-architecture resnet18_baseline_att \
-  --build-data-path ./data/pose/build --test-data-path ./data/pose/test \
+  --build-data-path /path/to/build \
+  --test-data-path /path/to/test \
   --image-size 224 \
-  --wisdom-csv ./artifacts/pose_wisdom.csv \
-  --output-json ./results/pose_coverage.json --device cpu
+  --wisdom-csv /path/to/pose_wisdom.csv \
+  --output-json ./results/pose_coverage.json \
+  --device cpu
 ```
 
 Supply a topology JSON with a `keypoints` list and one-based `skeleton` links.
@@ -224,10 +353,14 @@ For NVIDIA pose, use the state-dict reconstruction route shown above (or
 A legacy pickled/directly constructed NVIDIA module without that metadata is
 not covered by this guarantee and can still expose an unused classifier.
 
-The built-in pose loader uses resized RGB `[0,1]` images. Classification
-normalization flags do not alter it. For checkpoints requiring additional
-normalization or supervised heatmap/PAF/mask targets, supply a matching
-transformed loader through the Python API.
+The built-in pose loader resizes RGB images, scales to `[0,1]`, then applies
+ImageNet mean/std `(0.485,0.456,0.406)` / `(0.229,0.224,0.225)`, consistently
+for build, validation and test data. Classification normalization flags do not
+alter it. For checkpoints requiring different preprocessing or supervised
+heatmap/PAF/mask targets, supply a matching loader through the Python API.
+See [dataset preparation](datasets/README.md) for COCO image layout and the
+bundled NVIDIA topology/annotation converter; image-only coverage does not
+consume the annotation JSON or report pose accuracy.
 
 Random state-dict weights prove integration only. Meaningful pose-quality
 evaluation requires trained weights, matching preprocessing and pose ground truth.
@@ -264,15 +397,22 @@ BO is available in WISDOM mode. All controls below have defaults:
 
 ```shell
 uv run python run_wisdom.py \
-  --mode wisdom --task classification \
-  --weights-path ./classifier.pth --checkpoint-format state-dict \
+  --mode wisdom \
+  --task classification \
+  --weights-path ./classifier.pth \
+  --checkpoint-format state-dict \
   --model-factory my_package.models:make_classifier \
-  --build-data-path ./data/build --test-data-path ./data/test \
+  --build-data-path ./data/build \
+  --test-data-path ./data/test \
   --output-json ./results/classifier_bo.json \
-  --bo --bo-backend auto --bo-init 3 --bo-iter 3 \
+  --bo \
+  --bo-backend auto \
+  --bo-init 3 \
+  --bo-iter 3 \
   --bo-candidate-pool-size 32 \
   --bo-cluster-methods KMeans,MiniBatchKMeans,Birch \
-  --bo-n-clusters 2,3,4 --device cpu
+  --bo-n-clusters 2,3,4 \
+  --device cpu
 ```
 
 BO maximizes Pearson correlation between coverage and the task metric over
@@ -308,34 +448,104 @@ or calculate final coverage. Inputs below are local placeholders as above.
 
 ```shell
 uv run python wisdom_classification_train.py \
-  --model-path ./classifier.pth --checkpoint-format state-dict \
+  --model-path /path/to/classifier.pth \
+  --checkpoint-format state-dict \
   --model-factory my_package.models:make_classifier \
-  --imagefolder-root ./data/build --image-size 32 --normalize none \
-  --methods la --top-m 1 --num-layers 1 \
-  --out-csv ./artifacts/classifier_wisdom.csv --device cpu
+  --imagefolder-root /path/to/build \
+  --image-size 32 \
+  --normalize none \
+  --methods lgxa lig lgs \
+  --top-m 1 \
+  --num-layers 1 \
+  --out-csv ./saved_files/pre_csv/classifier_wisdom.csv \
+  --device cpu
 
 uv run python wisdom_yolo_train.py \
-  --weights ./models/yolo.yaml --img-dir ./data/yolo/build/images \
-  --imgsz 32 --num-images 4 --methods la --top-m 1 \
-  --selection-mode per-group --num-groups 2 --num-layers 2 \
-  --out-csv ./artifacts/yolo_wisdom.csv --device cpu
+  --weights ./models_info/saved_models/yolo11n.pt \
+  --img-dir /path/to/coco/images/train2017 \
+  --imgsz 640 \
+  --num-images 4 \
+  --methods lgxa lig lgs \
+  --top-m 1 \
+  --selection-mode per-group \
+  --num-groups 2 \
+  --num-layers 2 \
+  --out-csv ./saved_files/pre_csv/yolo_wisdom.csv \
+  --device cpu
 
 uv run python wisdom_pose_train.py \
-  --model-path ./models/random_pose.pth --checkpoint-format state-dict \
-  --pose-topology ./configs/human_pose.json \
+  --model-path /path/to/random_pose.pth \
+  --checkpoint-format state-dict \
+  --pose-topology /path/to/human_pose.json \
   --pose-architecture resnet18_baseline_att \
-  --img-dir ./data/pose/build --image-size 32 --methods lgxa \
-  --top-m 1 --num-layers 1 \
-  --out-csv ./artifacts/pose_wisdom.csv --device cpu
+  --img-dir /path/to/data/pose/build \
+  --image-size 32 \
+  --methods lgxa lig lgs \
+  --top-m 1 \
+  --num-layers 1 \
+  --out-csv ./saved_files/pre_csv/pose_wisdom.csv \
+  --device cpu
 ```
 
-The direct YOLO script accepts a local YAML for random initialization or a
-trusted local Ultralytics `.pt` artifact. Use the inference runner for a separate
-YAML plus raw state dictionary. `la` (layer activation) is a fast smoke method,
-not the default consensus configuration; pose defaults to `lgxa`.
+For normal YOLO pretraining, `--weights` points to a **trusted, existing `.pt`**
+checkpoint. It contains the model architecture, so no separate model YAML is
+required. The script's default already names a `.pt` file (`weights/yolo11n.pt`);
+the example above explicitly supplies the checkpoint's location in this checkout.
+A model YAML passed to `--weights` constructs an **untrained, randomly initialized
+model**, retained for synthetic integration tests and architecture experiments;
+it does not load pretrained weights. Use `run_wisdom.py --checkpoint-format
+state-dict --model-path ...yaml` for a separate YAML plus raw state dictionary.
+
+The YOLO script's optional `--data` YAML describes the **dataset**, not the model.
+When `--img-dir` is supplied, no dataset YAML is read. Neither kind of YAML needs
+to be supplied alongside `.pt` + `--img-dir`.
+
+The three examples explicitly use `lgxa lig lgs`. Omitting `--methods` preserves
+these task-specific defaults in both the scripts and shared pretraining API:
+
+| Task | Default attribution methods |
+| --- | --- |
+| Classification | `lrp ldl lig` |
+| YOLO detection | `lgxa lig lgs` |
+| Pose | `lgxa lig` |
+
+All defaults use at least two distinct methods for consensus voting. An explicit
+single method such as `--methods la` remains available for a quick smoke test.
+`run_wisdom.py` delegates to the same defaults when it needs to generate a missing
+or empty WISDOM CSV; an existing nonempty CSV is reused instead.
+
 BO runs in `run_wisdom.py` after score pretraining and before coverage, not in
 these CSV-only scripts. Wheel users replace `uv run python <script>.py` with
 `python -m <script>`.
+
+#### Attribution method options
+
+Pass space-separated identifiers to `--methods` (not a comma-separated string).
+The current Captum backend registers all of the following:
+
+| Identifier | Captum method |
+| --- | --- |
+| `lc` | LayerConductance |
+| `la` | LayerActivation |
+| `ii` | InternalInfluence |
+| `lgxa` | LayerGradientXActivation |
+| `lgc` | LayerGradCam |
+| `ldl` | LayerDeepLift |
+| `ldls` | LayerDeepLiftShap |
+| `lgs` | LayerGradientShap |
+| `lig` | LayerIntegratedGradients |
+| `lfa` | LayerFeatureAblation |
+| `lrp` | LayerLRP |
+
+Registered does not mean compatible with every model/layer. LRP and DeepLift
+depend on Captum's supported operators and module-reuse restrictions;
+DeepLiftShap needs multiple baseline examples (the current backend uses the
+batch-shaped zero baseline, so a batch of one is unsuitable). GradientShap is
+stochastic. LayerGradCam currently aggregates channels into a spatial heatmap,
+so prefer `lgxa`, `lig` and `lgs` for channel/neuron ranking. `la` measures
+activations without a target and is useful for fast smoke tests. Multiple
+gradient-based methods cost more time/memory than a single `la` pass; reduce
+batch size, image count or considered layers for a quick check.
 
 ## Docker
 
@@ -353,11 +563,4 @@ cd /shared/storage/cs/scratch/lrr550/package_wisdom/Wisdom
 docker build -f Docker/Dockerfile --target test -t wisdom-test .
 docker run --rm --network none wisdom-test \
   uv run --offline --no-sync pytest -q tests/test_wisdom_e2e.py
-```
-
-No dataset or sibling pose mount is needed for the tests. For manual experiments,
-an optional host bind mount is:
-
-```shell
--v /shared/storage/cs/scratch/lrr550/datasets:/datasets:ro
 ```

@@ -12,6 +12,11 @@ from wisdom.utils.yolo_wrapper import YOLOWrapper
 
 class DetectionAdapter:
     def __init__(self, model: nn.Module, num_classes: int | None = None) -> None:
+        # Official .pt exports freeze every parameter. WISDOM needs eligible
+        # layers/gradients for analysis, not optimizer updates. Restore gradients
+        # only for fully frozen models; preserve intentional partial freezing.
+        if not any(parameter.requires_grad for parameter in model.parameters()):
+            model.requires_grad_(True)
         self.analysis_model = YOLOWrapper(
             model,
             num_classes=num_classes or infer_num_classes(model),

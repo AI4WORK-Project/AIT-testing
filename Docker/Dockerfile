@@ -31,6 +31,6 @@ FROM base AS test
 # The locked Torch build is CUDA-capable, but validation is intentionally CPU-only.
 ENV CUDA_VISIBLE_DEVICES=""
 COPY tests ./tests
-RUN uv sync --frozen --group test --extra detection --extra bo
+RUN uv sync --frozen --group test --extra bo
 
 CMD ["uv", "run", "--offline", "--no-sync", "pytest", "-q", "tests/test_wisdom_e2e.py"]

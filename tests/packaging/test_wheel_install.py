@@ -194,14 +194,16 @@ def test_wheel_contains_runner_and_packaged_pose_models(tmp_path) -> None:
             assert help_result.returncode == 0, help_result.stderr
 
         # Execute the runtime suite against the installed wheel, not the checkout.
-        # Only source-policy/legacy tests and this packaging test are excluded:
-        # they inspect the source tree or a feature deliberately not distributed.
+        # Source-policy/legacy checks, source-only dataset helpers, and packaging
+        # itself are excluded here, but still run in the full checkout suite.
+        # They require files/features deliberately not distributed in the wheel.
         shutil.copytree(
             REPOSITORY / "tests",
             outside / "tests",
             ignore=shutil.ignore_patterns(
                 "__pycache__", "*.pyc", "packaging",
                 "test_torch_load_policy.py", "test_legacy_coverage_import.py",
+                "test_preprocess_coco_person.py",
             ),
         )
         runtime = _run(
